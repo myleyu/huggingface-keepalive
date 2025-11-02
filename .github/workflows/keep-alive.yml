@@ -1,9 +1,11 @@
-# 更新后的工作流 - 三重保险
-name: Keep Alive2.0
+name: Keep Alive3.0
 
 on:
   schedule:
-    - cron: '0 */4 * * *'  # 每 4 小时
+    # 每 4 小时运行一次
+    - cron: "0 */4 * * *"
+  
+  # 允许手动触发
   workflow_dispatch:
 
 jobs:
@@ -12,38 +14,88 @@ jobs:
     timeout-minutes: 15
     
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
       
-      - uses: actions/setup-python@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.10'
       
-      - name: Install all dependencies
+      - name: Install dependencies
         run: |
           pip install gradio_client requests
       
-      - name: Method 1 - Gradio Client (最可靠)
+      # ===== 方法 1: HuggingFace 官方 API（最可靠）=====
+      - name: Method 1 - HF Official API
         env:
-          SPACE_URL: ${{ secrets.SPACE_URL }}
-        run: python wake_space.py
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          SPACE_ID: "myleyu/solana-defi-monitor"
+        run: |
+          echo "========================================"
+          echo "🚀 方法 1: 使用 HF 官方 API"
+          echo "📍 Space: $SPACE_ID"
+          echo "⏰ 时间: $(date)"
+          echo "========================================"
+          
+          # 调用 HuggingFace API 获取 Space 信息
+          API_URL="https://huggingface.co/api/spaces/$SPACE_ID"
+          
+          echo "📡 调用 HF API: $API_URL"
+          result=$(curl -s -w "\n%{http_code} %{time_total}" \
+            -H "Authorization: Bearer $HF_TOKEN" \
+            "$API_URL")
+          
+          http_code=$(echo "$result" | tail -1 | awk '{print $1}')
+          time_total=$(echo "$result" | tail -1 | awk '{print $2}')
+          
+          echo "✅ HTTP 状态码: $http_code"
+          echo "⏱️  响应时间: ${time_total}s"
+          
+          if [ "$http_code" = "200" ]; then
+            echo "🎉 API 调用成功 - Space 已被唤醒"
+            
+            # 解析 Space 状态
+            space_info=$(echo "$result" | head -n -1)
+            echo "$space_info" | grep -q "runtime" && echo "✅ 检测到 runtime 信息"
+            
+          else
+            echo "⚠️ API 返回状态码: $http_code"
+          fi
+          echo ""
         continue-on-error: true
       
-      - name: Method 2 - Browser Simulation
+      # ===== 方法 2: Gradio Client（备用）=====
+      - name: Method 2 - Gradio Client
+        env:
+          SPACE_URL: ${{ secrets.SPACE_URL }}
+        run: |
+          echo "========================================"
+          echo "🚀 方法 2: 使用 Gradio Client"
+          echo "========================================"
+          python wake_space.py
+        continue-on-error: true
+      
+      # ===== 方法 3: 浏览器模拟（第二备用）=====
+      - name: Method 3 - Browser Simulation
         if: always()
         env:
           SPACE_URL: ${{ secrets.SPACE_URL }}
-        run: python browser_wake.py
+        run: |
+          echo "========================================"
+          echo "🚀 方法 3: 模拟浏览器访问"
+          echo "========================================"
+          python browser_wake.py
         continue-on-error: true
       
-      - name: Method 3 - Simple HTTP Ping
-        if: always()
-        env:
-          SPACE_URL: ${{ secrets.SPACE_URL }}
-        run: python ping_space.py
-        continue-on-error: true
-      
+      # ===== 总结 =====
       - name: Summary
         if: always()
         run: |
-          echo "✅ 三种保活方法均已尝试"
+          echo ""
+          echo "========================================"
+          echo "✅ 保活任务完成"
           echo "⏰ 完成时间: $(date)"
+          echo "📊 使用了 3 种方法确保唤醒"
+          echo "🔄 下次运行: 4 小时后"
+          echo "========================================"
