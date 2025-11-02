@@ -1,48 +1,49 @@
-name: Keep HuggingFace Space Alive
+# 更新后的工作流 - 三重保险
+name: Keep Alive2.0
 
 on:
   schedule:
-    # 每 4 小时运行一次（比 48 小时限制短很多）
-    - cron: '0 */4 * * *'
-  
-  # 允许手动触发
+    - cron: '0 */4 * * *'  # 每 4 小时
   workflow_dispatch:
 
 jobs:
   wake-space:
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # 增加超时时间，等待冷启动
+    timeout-minutes: 15
     
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
       
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
       
-      - name: Install dependencies
+      - name: Install all dependencies
         run: |
           pip install gradio_client requests
       
-      - name: Wake Space with Gradio Client
+      - name: Method 1 - Gradio Client (最可靠)
         env:
           SPACE_URL: ${{ secrets.SPACE_URL }}
-        run: |
-          python wake_space.py
+        run: python wake_space.py
         continue-on-error: true
       
-      - name: Fallback - Direct HTTP ping
+      - name: Method 2 - Browser Simulation
         if: always()
         env:
           SPACE_URL: ${{ secrets.SPACE_URL }}
-        run: |
-          python ping_space.py
+        run: python browser_wake.py
         continue-on-error: true
       
-      - name: Log completion
+      - name: Method 3 - Simple HTTP Ping
+        if: always()
+        env:
+          SPACE_URL: ${{ secrets.SPACE_URL }}
+        run: python ping_space.py
+        continue-on-error: true
+      
+      - name: Summary
         if: always()
         run: |
-          echo "✅ Keep-alive job completed at $(date)"
-          echo "Next run: Check workflow schedule"
+          echo "✅ 三种保活方法均已尝试"
+          echo "⏰ 完成时间: $(date)"
