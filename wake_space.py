@@ -13,7 +13,6 @@ def wake_with_gradio_client():
         return False
     
     # 提取 space 路径
-    # https://huggingface.co/spaces/username/spacename -> username/spacename
     try:
         if 'huggingface.co/spaces/' in space_url:
             space_id = space_url.split('huggingface.co/spaces/')[-1].rstrip('/')
@@ -40,29 +39,38 @@ def wake_with_gradio_client():
         client = Client(space_id)
         
         print("✅ 成功连接到 Space!")
-        print(f"✅ Space 端点: {client.endpoints}")
         
-        # 尝试调用一个简单的函数（如果有的话）
+        # 获取端点信息
         try:
-            # 获取可用的 API
-            print(f"\n📋 可用的 API 端点:")
-            for endpoint in client.endpoints:
-                print(f"   - {endpoint}")
+            api_info = client.view_api(return_info=True)
+            print(f"✅ 检测到 {len(api_info)} 个 API 端点")
+        except:
+            print("✅ Space 已连接（API 信息获取可选）")
+        
+        # 尝试调用一个简单的查询端点（不会触发复杂操作）
+        print("\n🔄 尝试调用状态查询端点...")
+        
+        try:
+            # 方法1: 尝试调用 get_status（fn_index: 5）
+            result = client.predict(fn_index=5)
+            print(f"✅ 成功调用 get_status 端点")
+            print(f"   返回: {str(result)[:100]}...")
             
-            # 尝试调用第一个端点（通常是刷新或状态检查）
-            if client.endpoints:
-                first_endpoint = client.endpoints[0]
-                print(f"\n🔄 尝试调用端点: {first_endpoint}")
-                try:
-                    # 调用端点（参数为空列表）
-                    result = client.predict(api_name=first_endpoint)
-                    print(f"✅ API 调用成功")
-                except Exception as e:
-                    print(f"⚠️ API 调用失败（但连接成功）: {str(e)[:100]}")
         except Exception as e:
-            print(f"⚠️ 端点调用出错: {str(e)[:100]}")
+            error_msg = str(e)
+            print(f"⚠️ 端点调用失败: {error_msg[:100]}")
+            
+            # 方法2: 尝试调用 refresh_all（fn_index: 2）
+            try:
+                print("\n🔄 尝试备用端点 refresh_all...")
+                result = client.predict(fn_index=2)
+                print(f"✅ 成功调用 refresh_all 端点")
+            except Exception as e2:
+                print(f"⚠️ 备用端点也失败: {str(e2)[:50]}")
+                # 没关系，连接已经建立就够了
         
         print("\n🎉 Space 已被成功唤醒/保活!")
+        print("💡 即使 API 调用失败，连接本身也足以保持 Space 活跃")
         return True
         
     except ImportError:
@@ -94,6 +102,8 @@ if __name__ == "__main__":
     print("\n" + "=" * 70)
     if success:
         print("✅ 保活任务完成")
+        print("📊 下次运行: 4 小时后")
+        print("🛡️ Space 将保持活跃状态")
     else:
         print("⚠️ 保活可能未完全成功，但已尝试唤醒")
     print("=" * 70)
