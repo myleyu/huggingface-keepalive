@@ -1,0 +1,48 @@
+name: Keep HuggingFace Space Alive
+
+on:
+  schedule:
+    # 每 4 小时运行一次（比 48 小时限制短很多）
+    - cron: '0 */4 * * *'
+  
+  # 允许手动触发
+  workflow_dispatch:
+
+jobs:
+  wake-space:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15  # 增加超时时间，等待冷启动
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install gradio_client requests
+      
+      - name: Wake Space with Gradio Client
+        env:
+          SPACE_URL: ${{ secrets.SPACE_URL }}
+        run: |
+          python wake_space.py
+        continue-on-error: true
+      
+      - name: Fallback - Direct HTTP ping
+        if: always()
+        env:
+          SPACE_URL: ${{ secrets.SPACE_URL }}
+        run: |
+          python ping_space.py
+        continue-on-error: true
+      
+      - name: Log completion
+        if: always()
+        run: |
+          echo "✅ Keep-alive job completed at $(date)"
+          echo "Next run: Check workflow schedule"
